@@ -1,57 +1,70 @@
 const { addonBuilder } = require("stremio-addon-sdk")
+const axios = require("axios")
+const csv = require("csvtojson")
 
 const manifest = {
-    "id": "community.akshay.test",
-    "version": "1.0.0",
-    "name": "My First Custom Addon",
-    "description": "Learning how to use the Stremio SDK",
+    "id": "community.unmara.automated",
+    "version": "1.1.0",
+    "name": "My Auto-Updating Addon",
+    "description": "I update this via Google Sheets!",
     "types": ["movie"],
-    // Resources tell Stremio what this addon can do
     "resources": ["catalog", "stream"],
     "catalogs": [
         {
             "type": "movie",
-            "id": "test_catalog",
-            "name": "My Custom List"
+            "id": "sheet_catalog",
+            "name": "My Google Sheet List"
         }
     ]
 }
 
 const builder = new addonBuilder(manifest)
 
-// 1. This defines what shows up in your "Catalog" list
-builder.defineCatalogHandler((args) => {
-    if (args.id === "test_catalog") {
-        return Promise.resolve({
-            metas: [
-                {
-                    id: "tt0068646", // A fake or real IMDB ID
-                    type: "movie",
-                    name: "Big Buck Bunny",
-                    poster: "https://upload.wikimedia.org/wikipedia/commons/c/c5/Big_buck_bunny_poster_big.jpg",
-                    description: "A giant rabbit deals with three bullying squirrels."
-                }
-            ]
-        })
-    } else {
-        return Promise.resolve({ metas: [] })
+// This is your specific Magic Link
+const SHEET_URL = "https://docs.google.com/spreadsheets/d/1LkUGD2biuMLKNqJmNipOd4YZsJWo4s32hwpqICFj1KM/gviz/tq?tqx=out:csv"
+
+// This function gets the latest data from your sheet
+async function getMoviesFromSheet() {
+    try {
+        const response = await axios.get(SHEET_URL)
+        const jsonArray = await csv().fromString(response.data)
+        return jsonArray
+    } catch (error) {
+        console.error("Error fetching sheet:", error)
+        return []
     }
+}
+
+builder.defineCatalogHandler(async (args) => {
+    if (args.id === "sheet_catalog") {
+        const movies = await getMoviesFromSheet()
+        return {
+            metas: movies.map(m => ({
+                id: m.id,
+                type: m.type,
+                name: m.name,
+                poster: m.poster,
+                description: "Added via Google Sheets"
+            }))
+        }
+    }
+    return { metas: [] }
 })
 
-// 2. This defines the actual video link when you click 'Play'
-builder.defineStreamHandler((args) => {
-    if (args.id === "tt0068646") {
-        return Promise.resolve({
+builder.defineStreamHandler(async (args) => {
+    const movies = await getMoviesFromSheet()
+    const movie = movies.find(m => m.id === args.id)
+    if (movie) {
+        return {
             streams: [
                 {
-                    title: "Watch in HD (HTTP)",
-                    url: "http://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4"
+                    title: "Watch Now",
+                    url: movie.url
                 }
             ]
-        })
-    } else {
-        return Promise.resolve({ streams: [] })
+        }
     }
+    return { streams: [] }
 })
 
 module.exports = builder.getInterface()
