@@ -1,0 +1,11 @@
+{
+	"name": "stremio-addon-cd",
+	"version": "0.0.1",
+	"description": "npm install",
+	"scripts": {
+		"start": "node server.js"
+	},
+	"dependencies": {
+		"stremio-addon-sdk": "1.1.x"
+	}
+}
